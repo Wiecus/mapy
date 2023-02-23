@@ -1,39 +1,99 @@
-# History files
-.Rhistory
-.Rapp.history
+---
+title: "R Notebook"
+output: html_notebook
+---
 
-# Session Data files
-.RData
+```{r}
+#Ładowanie pakietów
+library(readxl)
+library(dplyr)
+library(stats)
+library(xtable)
+library(ggplot2)
+library(ggpubr)
+library(ggExtra)
+library(sf)
+library(tmap)
+library(tmaptools)
+library(XML)
+library(rvest)
+library(tidyverse)
+```
+```{r}
+dane <- read_xlsx("dane/Dane_powiaty.xlsx", sheet = 1) %>% 
+    mutate(X1=round(X1,1),
+          X2=round(X2,1),
+          X3=round(X3,1),
+          X4=round(X4,1),
+          X5=round(X5,1),
+          X6=round(X6,1),
+          X7=round(X7,1),
+          X8=round(X8,1),
+          X9=round(X9,1),
+          Kod=substr(Kod,1,4)) %>% 
+    rename(JPT_KOD_JE=Kod)        
+zmienne <- read_xlsx("dane/Dane_powiaty.xlsx", sheet = 2)
+```
+```{r}
+#Wczytujemy pliki shp
+wojewodztwa <- st_read('Wojewodztwa/Wojewodztwa.shp')
+powiaty <- st_read('Powiaty/Powiaty.shp')
+```
+```{r}
+#laczymy plik dane z powiaty po JPT_KOD_JE
+powiaty_all <- left_join(powiaty,dane)
+```
+```{r}
+#tworzymy kartograf dla zmiennej X8
+X8 <-tm_shape(powiaty_all) +
+  tm_polygons(col='X8',
+              palette=c('darkcyan','springgreen4','palegreen3','palegreen2','palegreen','papayawhip',
+                      'peachpuff1','sienna1','sienna3','red','deeppink','deeppink4','black'),
+              labels=c('3183-3500','3500-3688','3688-3795','3795-3913','3913-4019','4019-4166','4166-4313','4313-4615','4615-5000','5000-6500','6500-8000','8000-8488'),
+              breaks=c(3183,3500,3688,3795,3913,4019,4166,4313,4615,5000,6500,8000,8488),
+              title='Wykres zarobkow') +
+  tm_shape(wojewodztwa) +
+  tm_borders(col='black', lwd=2)
+tmap_save(X8,'WykresUlepszony.png', height = 7)
+```
+```{r}
+#tworzymy wykres dla zmiennej X8 ale dla powiatow woj wielkopolskiego
 
-# User-specific files
-.Ruserdata
+dane_wlkp <- dane %>% filter(substr(JPT_KOD_JE,1,2)=='30')
 
-# Example code in package build process
-*-Ex.R
+powiaty_wlkp <- powiaty[substr(powiaty$JPT_KOD_JE,1,2)=='30',]
 
-# Output files from R CMD build
-/*.tar.gz
+powiaty_wlkp_all <- left_join(powiaty_wlkp,dane_wlkp)
 
-# Output files from R CMD check
-/*.Rcheck/
+tm_shape(powiaty_wlkp_all) +
+  tm_polygons(col='X8',
+              palette=c('springgreen4','palegreen3','palegreen2','palegreen','papayawhip',
+                      'peachpuff1','sienna1','sienna3'),
+              labels=c('3183-3688','3688-3795','3795-3913','3913-4019','4019-4166','4166-4313','4313-4615','4615-5501'),
+              breaks=c(3183,3688,3795,3913,4019,4166,4313,4615,5501),
+              title='Wykres zarobkow')
+summary(dane_wlkp$X8)
+```
+```{r}
+#Stwórz kartogram w przekroju województw dla gęstości zaludnienia.
+# Pobierz dane ze strony https://pl.wikipedia.org/wiki/Wojew%C3%B3dztwo.
 
-# RStudio files
-.Rproj.user/
+url = 'https://pl.wikipedia.org/wiki/Wojew%C3%B3dztwo'
+dane_wiki_html = read_html(url)
+dane_wiki = 
+  dane_wiki_html %>% 
+  html_nodes(css = "table") %>% 
+  nth(1) %>% 
+  html_table(fill = TRUE)
 
-# produced vignettes
-vignettes/*.html
-vignettes/*.pdf
+gestosc_zaludnienia <- dane_wiki %>% rename(JPT_NAZWA_ = Województwo) %>% 
+  rename(X1 = `Gęstość zaludnienia[osób/km²]`) %>% 
+  select(JPT_NAZWA_, X1)
 
-# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
-.httr-oauth
+gestosc_zaludnienia_all <- left_join(wojewodztwa, gestosc_zaludnienia)
 
-# knitr and R markdown default cache directories
-*_cache/
-/cache/
+tm_shape(gestosc_zaludnienia_all) +
+  tm_polygons(col='X1',
+              title='Gęstość zaludnienia')
 
-# Temporary files created by R markdown
-*.utf8.md
-*.knit.md
-
-# R Environment Variables
-.Renviron
+```
